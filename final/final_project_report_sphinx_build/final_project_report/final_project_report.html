@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title></title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=5ecbeea2" />
+    <link rel="stylesheet" type="text/css" href="_static/basic.css?v=35dbc9f4" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=5f8e19c2" />
+    <link rel="stylesheet" type="text/css" href="_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css" />
+    <link rel="stylesheet" type="text/css" href="_static/style.css?v=0f925cba" />
+    <script src="_static/documentation_options.js?v=d6d90d09"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="toctree-wrapper compound">
+<span id="document-origin_classification"></span><section id="final-project-report-country-of-origin-detection">
+<h1>Final project report: Country of origin detection<a class="headerlink" href="#final-project-report-country-of-origin-detection" title="Link to this heading">¶</a></h1>
+<section id="introduction-to-task-and-dataset">
+<h2>Introduction to task and dataset<a class="headerlink" href="#introduction-to-task-and-dataset" title="Link to this heading">¶</a></h2>
+<p>In this project, the dataset is cross market mobile application dataset, it is collected to test the privacy of 100 most popular IOS and applications in three countries: India, China, and US. The goal is to use machine learning models to determine the country of origin for each applications using the network traffic trace. It is a three classes classification problem. For each sample, we have ipv4, TCP, UDP headers and payload data available. After download the traffic.pcapng file from nprint benchmark, I use commands like: nprint -P traffic.pcapng -W out20.npt -4 -t -u -p 20 to create several dataset with different size of payload used.</p>
+</section>
+<section id="nprint-data-representation">
+<h2>nPrint data representation<a class="headerlink" href="#nprint-data-representation" title="Link to this heading">¶</a></h2>
+<p>The nPrint data representation is a special representation for network traffic. Instead of using domain knowledge to construct features manually from the packets, nprint allows we to directly use bits. The nprint fixed 480 features for ipv4 header information and another 480 features for TCP header information. In addition, UDP and ICMP headers both are transfered to 64 feautures. Finally, user can define the number of features need for the payload. Since each feature is a bit, so if the feature exist there are only two values available:zero and one. If the feature doesn’t exist, -1 is used. For example, for TCP\IP packet, all UDP features are -1 since they don’t exist.</p>
+</section>
+<section id="import-libraries">
+<h2>import libraries<a class="headerlink" href="#import-libraries" title="Link to this heading">¶</a></h2>
+<p>Here are the libraries I used in this project.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pcapng</span><span class="w"> </span><span class="kn">import</span> <span class="n">FileScanner</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pcapng.blocks</span><span class="w"> </span><span class="kn">import</span> <span class="n">EnhancedPacket</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_test_split</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.ensemble</span><span class="w"> </span><span class="kn">import</span> <span class="n">RandomForestClassifier</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.metrics</span><span class="w"> </span><span class="kn">import</span> <span class="n">balanced_accuracy_score</span><span class="p">,</span> <span class="n">classification_report</span><span class="p">,</span> <span class="n">confusion_matrix</span><span class="p">,</span> <span class="n">make_scorer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">xgboost</span><span class="w"> </span><span class="kn">import</span> <span class="n">XGBClassifier</span><span class="p">,</span> <span class="n">plot_importance</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.preprocessing</span><span class="w"> </span><span class="kn">import</span> <span class="n">LabelEncoder</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="extract-labels">
+<h2>Extract labels<a class="headerlink" href="#extract-labels" title="Link to this heading">¶</a></h2>
+<p>The labels are encoded in the comment inside traffic.pcapng file, so I extract them for later supervised learning.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">labels</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s2">&quot;traffic.pcapng&quot;</span><span class="p">,</span> <span class="s2">&quot;rb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+    <span class="n">scanner</span> <span class="o">=</span> <span class="n">FileScanner</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">scanner</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">EnhancedPacket</span><span class="p">):</span>
+            <span class="n">comment</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">options</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;opt_comment&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">comment</span><span class="p">:</span>
+                <span class="n">country</span> <span class="o">=</span> <span class="n">comment</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;,&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+                <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">country</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="fitting-random-forest-model-with-different-bytes-of-payloads">
+<h2>Fitting random forest model with different bytes of payloads<a class="headerlink" href="#fitting-random-forest-model-with-different-bytes-of-payloads" title="Link to this heading">¶</a></h2>
+<p>Using nprint, I create seven datasets with different bytes of payload data used, from 20 bytes to 80 bytes. Although more bytes of payload data means more information, the limited sample size of about 10000 in the dataset suggest not to use all the payload data. When we use a lot of features and the amount of data is limited, flexible models may just perfectly remember the data and lead to severe overfitting.</p>
+<p>From my plot below, we can see that the accuracy first improves when increasing size from 20 bytes to 40 bytes. However, after 40 bytes, the accuracy drops because the number of features is relatively large compared to the training size and model start to overfit. I believe if we have more data, use more payload bytes will improve the model performance. However, in this dataset with about 10000 samples, using 40 bytes of payload is better.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># find how many bytes of payload should we use</span>
+<span class="c1"># it takes 2.5 minites to run in my computer</span>
+<span class="n">payload_bytes</span> <span class="o">=</span> <span class="p">[</span><span class="mi">20</span><span class="p">,</span> <span class="mi">30</span><span class="p">,</span> <span class="mi">40</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">70</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">150</span><span class="p">,</span> <span class="mi">200</span><span class="p">]</span>
+<span class="n">accs</span> <span class="o">=</span> <span class="p">[]</span>
+<span class="n">best_rf</span> <span class="o">=</span> <span class="kc">None</span>
+<span class="k">for</span> <span class="n">byte</span> <span class="ow">in</span> <span class="n">payload_bytes</span><span class="p">:</span>
+    <span class="c1"># create train text dataset based on data</span>
+    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;out</span><span class="si">{</span><span class="n">byte</span><span class="si">}</span><span class="s1">.npt&#39;</span><span class="p">)</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span> <span class="o">=</span> <span class="s1">&#39;src_ip&#39;</span><span class="p">)</span>
+    <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+    <span class="n">X_train</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span>
+        <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">y</span>
+    <span class="p">)</span>
+    <span class="n">clf</span> <span class="o">=</span> <span class="n">RandomForestClassifier</span><span class="p">(</span>
+    <span class="n">n_estimators</span><span class="o">=</span><span class="mi">500</span><span class="p">,</span>      
+    <span class="n">random_state</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> 
+    <span class="n">n_jobs</span><span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;fitting random forest using </span><span class="si">{</span><span class="n">byte</span><span class="si">}</span><span class="s1"> bytes of payload&#39;</span><span class="p">)</span>
+    <span class="n">clf</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+    <span class="n">y_pred</span> <span class="o">=</span> <span class="n">clf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+    <span class="n">acc</span> <span class="o">=</span> <span class="n">balanced_accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
+    <span class="n">accs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">acc</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">acc</span> <span class="o">&gt;=</span> <span class="nb">max</span><span class="p">(</span><span class="n">accs</span><span class="p">):</span>
+        <span class="n">best_rf</span> <span class="o">=</span> <span class="n">clf</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">payload_bytes</span><span class="p">,</span> <span class="n">accs</span><span class="p">,</span> <span class="n">marker</span><span class="o">=</span><span class="s1">&#39;o&#39;</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s2">&quot;Random Forest Accuracy vs Payload Size&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">14</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s2">&quot;Payload Bytes Extracted&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s2">&quot;Blanced Accuracy&quot;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">12</span><span class="p">)</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">payload_bytes</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>fitting random forest using 20 bytes of payload
+fitting random forest using 30 bytes of payload
+fitting random forest using 40 bytes of payload
+fitting random forest using 50 bytes of payload
+fitting random forest using 60 bytes of payload
+fitting random forest using 70 bytes of payload
+fitting random forest using 80 bytes of payload
+fitting random forest using 100 bytes of payload
+fitting random forest using 150 bytes of payload
+fitting random forest using 200 bytes of payload
+</pre></div>
+</div>
+<img alt="_images/4c2767c627c5cbe2bbae2017895066b4dbf6328df90f406110e99c4bf7f51858.png" src="_images/4c2767c627c5cbe2bbae2017895066b4dbf6328df90f406110e99c4bf7f51858.png" />
+</div>
+</div>
+</section>
+<section id="cross-validation-to-select-hyperparameters">
+<h2>Cross validation to select hyperparameters<a class="headerlink" href="#cross-validation-to-select-hyperparameters" title="Link to this heading">¶</a></h2>
+<p>Random forest is an ensemble of simple decision trees. Each simple decision tree is sensitive to data and become untable, so selecting different features and data by bootstrapping for each decision tree will make these decision trees almost independent to each other. Therefore, random forest take the majority vote from many decision trees as the result to overcome this problem of decision trees. Given the independence of the decision trees, the variance of their sum can be reduced effectively so random forest provide a more robust result.</p>
+<p>In this cross validation, I mainly tune two hyperparameters: the number of trees in random forest and the max depth of each tree. Although more trees will reduce variance and lead to better result, diminishing marginal return will happen. Fitting too many trees will be inefficient if smaller amount of trees can achieve similar result. The depth of tree is also an important feature, if we allow the tree to grow infinitely, the risk of overfitting increases. However, deeper tree indeed provide finer classification and can potentially achieve better result.</p>
+<p>The final result for random forest model is to use 500 trees and not to set a maxium depth. The balanced accuracy on the test set is 0.949, smaller than the result in the paper, suggesting me to use more complex model.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># This cross validation take about 2.5 minutes. </span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">sklearn.model_selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">GridSearchCV</span>
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;out40.npt&#39;</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span> <span class="o">=</span> <span class="s1">&#39;src_ip&#39;</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+<span class="n">X_train</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">y</span>
+<span class="p">)</span>
+<span class="n">param_grid</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;n_estimators&quot;</span><span class="p">:</span>     <span class="p">[</span><span class="mi">500</span><span class="p">,</span> <span class="mi">700</span><span class="p">,</span> <span class="mi">1000</span><span class="p">],</span>
+    <span class="s2">&quot;max_depth&quot;</span><span class="p">:</span>        <span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span>
+<span class="p">}</span>
+<span class="n">balanced_accuracy_scorer</span> <span class="o">=</span> <span class="n">make_scorer</span><span class="p">(</span><span class="n">balanced_accuracy_score</span><span class="p">)</span>
+<span class="n">rf</span> <span class="o">=</span> <span class="n">RandomForestClassifier</span><span class="p">(</span><span class="n">random_state</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">grid</span> <span class="o">=</span> <span class="n">GridSearchCV</span><span class="p">(</span>
+    <span class="n">estimator</span><span class="o">=</span><span class="n">rf</span><span class="p">,</span>
+    <span class="n">param_grid</span><span class="o">=</span><span class="n">param_grid</span><span class="p">,</span>
+    <span class="n">cv</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">scoring</span><span class="o">=</span><span class="n">balanced_accuracy_scorer</span><span class="p">,</span>
+    <span class="n">n_jobs</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="n">verbose</span><span class="o">=</span><span class="mi">1</span>
+<span class="p">)</span>
+<span class="n">grid</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2"> Best Params:&quot;</span><span class="p">,</span> <span class="n">grid</span><span class="o">.</span><span class="n">best_params_</span><span class="p">)</span>
+<span class="n">best_rf</span> <span class="o">=</span> <span class="n">grid</span><span class="o">.</span><span class="n">best_estimator_</span>
+<span class="n">y_pred</span> <span class="o">=</span> <span class="n">best_rf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+<span class="n">acc</span> <span class="o">=</span> <span class="n">balanced_accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Balanced accuracy: </span><span class="si">{</span><span class="n">acc</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Classification Report:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">classification_report</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Confusion Matrix:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Fitting 5 folds for each of 9 candidates, totalling 45 fits
+
+ Best Params: {&#39;max_depth&#39;: None, &#39;n_estimators&#39;: 500}
+Balanced accuracy: 0.9487
+Classification Report:
+              precision    recall  f1-score   support
+
+       china       0.99      0.93      0.96       610
+       india       0.93      0.98      0.95       815
+          us       0.94      0.94      0.94       700
+
+    accuracy                           0.95      2125
+   macro avg       0.95      0.95      0.95      2125
+weighted avg       0.95      0.95      0.95      2125
+
+Confusion Matrix:
+[[565  25  20]
+ [  1 795  19]
+ [  6  33 661]]
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="fit-xgboost">
+<h2>Fit xgboost<a class="headerlink" href="#fit-xgboost" title="Link to this heading">¶</a></h2>
+<p>xgboost is a kind of gradient boosting tree. The whole xgboost model contains many smaller trees, and each small tree is fitted sequentialy on the residuals of previous trees. With xgboost’s special structure, they can use second order information like Hessian during optimization. Instead of pure gradient descent, xgboost use optimization similar to newton’s method and lead to a stable optimization. Therefore, it is expected that xgboost can have a better result. In addition, since it is a tree based model, unlike deep learning models, we can see the feature importance and have a interpretable result.</p>
+<p>For this xgboost model, I achieve balanced accuracy of 0.967 and it is very close to the result in the benchmark 0.968. Therefore, I decide not to use neural network model since the xgboost model can give interpretable result.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s1">&#39;out40.npt&#39;</span><span class="p">)</span>
+<span class="n">X</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">drop</span><span class="p">(</span><span class="n">columns</span> <span class="o">=</span> <span class="s1">&#39;src_ip&#39;</span><span class="p">)</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+<span class="n">encoder</span> <span class="o">=</span> <span class="n">LabelEncoder</span><span class="p">()</span>
+<span class="n">y</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">fit_transform</span><span class="p">(</span><span class="n">y</span><span class="p">)</span> 
+<span class="n">X_train</span><span class="p">,</span> <span class="n">X_test</span><span class="p">,</span> <span class="n">y_train</span><span class="p">,</span> <span class="n">y_test</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">test_size</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span> <span class="n">stratify</span><span class="o">=</span><span class="n">y</span>
+<span class="p">)</span>
+<span class="n">xgb</span> <span class="o">=</span> <span class="n">XGBClassifier</span><span class="p">(</span>
+    <span class="n">n_estimators</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+    <span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.05</span><span class="p">,</span>
+    <span class="n">max_depth</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
+    <span class="n">eval_metric</span><span class="o">=</span><span class="s2">&quot;mlogloss&quot;</span><span class="p">,</span> 
+    <span class="n">random_state</span> <span class="o">=</span> <span class="mi">100</span>
+<span class="p">)</span>
+<span class="n">xgb</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X_train</span><span class="p">,</span> <span class="n">y_train</span><span class="p">)</span>
+<span class="n">y_pred</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X_test</span><span class="p">)</span>
+<span class="n">acc</span> <span class="o">=</span> <span class="n">balanced_accuracy_score</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Balanced Accuracy: </span><span class="si">{</span><span class="n">acc</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Classification Report:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">classification_report</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">Confusion Matrix:&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">confusion_matrix</span><span class="p">(</span><span class="n">y_test</span><span class="p">,</span> <span class="n">y_pred</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output stream highlight-myst-ansi notranslate"><div class="highlight"><pre><span></span>Balanced Accuracy: 0.967
+Classification Report:
+              precision    recall  f1-score   support
+
+           0       1.00      0.96      0.98       610
+           1       0.95      0.98      0.96       815
+           2       0.96      0.96      0.96       700
+
+    accuracy                           0.97      2125
+   macro avg       0.97      0.97      0.97      2125
+weighted avg       0.97      0.97      0.97      2125
+
+
+Confusion Matrix:
+[[584  16  10]
+ [  2 797  16]
+ [  0  25 675]]
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="feature-importance-of-the-xgboost-model">
+<h2>feature importance of the xgboost model<a class="headerlink" href="#feature-importance-of-the-xgboost-model" title="Link to this heading">¶</a></h2>
+<p>Below shows the top 20 features for the xgboost model ordered by the gain. Gain is a meature of how this feature improve the model performance. From the table, we can see that most important features are tcp_ackf, tcp_opt, ipv4_ttl, ipv4 source and destination.</p>
+<p>ipv4 TTL (Time-to-Live) decreases with each hop, so its value reveals geographical information and it is a intuitive factor that seperate these three countires.
+TCP ACK flags and TCP options may reflect country specific network architectures.
+The ipv4 source and destination also contains a lot of information, since they encode regional address blocks and routing allocations. Applications tend to communicate with country specific data centers the addresses observed in packet flows reveal geographic association.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">importance_dict</span> <span class="o">=</span> <span class="n">xgb</span><span class="o">.</span><span class="n">get_booster</span><span class="p">()</span><span class="o">.</span><span class="n">get_score</span><span class="p">(</span><span class="n">importance_type</span><span class="o">=</span><span class="s1">&#39;gain&#39;</span><span class="p">)</span>
+<span class="n">importance_df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_dict</span><span class="p">(</span><span class="n">importance_dict</span><span class="p">,</span> <span class="n">orient</span><span class="o">=</span><span class="s1">&#39;index&#39;</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;gain&#39;</span><span class="p">])</span>
+<span class="n">importance_df</span> <span class="o">=</span> <span class="n">importance_df</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="n">by</span><span class="o">=</span><span class="s1">&#39;gain&#39;</span><span class="p">,</span> <span class="n">ascending</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">importance_df</span><span class="o">.</span><span class="n">head</span><span class="p">(</span><span class="mi">20</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<div class="output text_html"><div>
+<style scoped>
+    .dataframe tbody tr th:only-of-type {
+        vertical-align: middle;
+    }
+
+    .dataframe tbody tr th {
+        vertical-align: top;
+    }
+
+    .dataframe thead th {
+        text-align: right;
+    }
+</style>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>gain</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>tcp_ackf_0</th>
+      <td>87.605499</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_64</th>
+      <td>33.007622</td>
+    </tr>
+    <tr>
+      <th>ipv4_ttl_5</th>
+      <td>32.527515</td>
+    </tr>
+    <tr>
+      <th>ipv4_ttl_4</th>
+      <td>27.602900</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_32</th>
+      <td>27.557949</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_65</th>
+      <td>24.454216</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_33</th>
+      <td>20.853487</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_66</th>
+      <td>15.708938</td>
+    </tr>
+    <tr>
+      <th>ipv4_dst_30</th>
+      <td>14.763415</td>
+    </tr>
+    <tr>
+      <th>ipv4_src_23</th>
+      <td>12.353851</td>
+    </tr>
+    <tr>
+      <th>ipv4_ttl_3</th>
+      <td>10.937876</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_63</th>
+      <td>10.241982</td>
+    </tr>
+    <tr>
+      <th>ipv4_src_31</th>
+      <td>9.343322</td>
+    </tr>
+    <tr>
+      <th>ipv4_src_29</th>
+      <td>8.980006</td>
+    </tr>
+    <tr>
+      <th>ipv4_src_30</th>
+      <td>8.743965</td>
+    </tr>
+    <tr>
+      <th>ipv4_dst_22</th>
+      <td>8.396595</td>
+    </tr>
+    <tr>
+      <th>tcp_doff_0</th>
+      <td>6.232738</td>
+    </tr>
+    <tr>
+      <th>ipv4_dst_29</th>
+      <td>5.913424</td>
+    </tr>
+    <tr>
+      <th>ipv4_src_25</th>
+      <td>5.840579</td>
+    </tr>
+    <tr>
+      <th>tcp_opt_98</th>
+      <td>5.579984</td>
+    </tr>
+  </tbody>
+</table>
+</div></div></div>
+</div>
+</section>
+</section>
+</div>
+
+
+          </div>
+          
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      
+      
+      
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 8.2.3</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 1.0.0</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

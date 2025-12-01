@@ -1,0 +1,22 @@
+/* Center main body */
+div.document,
+div.body {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-width: 850px;               /* adjust to your preferred width */
+}
+
+/* Center footer + copyright bar */
+div.footer, div.footer > .container {
+    max-width: 850px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    text-align: center;
+}
+
+/* Optional readability improvements */
+body {
+    background-color: #fafafa;
+    font-size: 17px;
+    line-height: 1.55;
+}
