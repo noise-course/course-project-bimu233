@@ -1,0 +1,2 @@
+## Feedback
+You explain the goal in a simple way and it is obvious what you want to reproduce. One small thing that could make it stronger is giving a bit more detail about how you plan to work with the dataset since “about 10000 packets from three countries” is a bit vague and the benchmark usually uses flow level samples. Maybe add the details in the deliverables. You might also want to mention at least one or two model types you plan to try so the plan feels more concrete. Other than that, the deliverables are fine and the project looks very manageable.
